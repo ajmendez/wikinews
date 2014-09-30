@@ -122,7 +122,7 @@ def syncdb(filename, date, dbfile=DBFILE):
                 titles.insert(dict(title=title, code=countrycode, total=0))
             row = titles.find_one(title=title)
             total = row['total'] + requests
-            titles.update(dict(title=title, total=total), ['title'])
+            titles.update(dict(title=title, code=countrycode, total=total), ['title'])
             
             # add to day
             
