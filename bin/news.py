@@ -12,13 +12,16 @@ from dateutil import parser
 from subprocess import call
 import urllib
 
-try:
-    DATE = sys.argv[1]
-except:
-    print 'Usage: {} 2014-09-29-01 # year-month-date-hr'.format(sys.argv[0])
-    sys.exit(1)
+
 
 DEBUG = ('debug' in sys.argv)
+if __name__ == '__main__':
+    try:
+        DATE = sys.argv[1]
+    except:
+        print 'Usage: {} 2014-09-29-01 # year-month-date-hr'.format(sys.argv[0])
+        sys.exit(1)
+    
 
 
 # location where we store the intemediate bits.
@@ -33,6 +36,18 @@ DBFILE = '/wikinews.db'
 URL = 'http://dumps.wikimedia.org/other/pagecounts-raw/{year}/{year}-{month:02d}/pagecounts-{year}{month:02d}{day:02d}-{hour:02d}0000.gz'
 HASHURL = 'http://dumps.wikimedia.org/other/pagecounts-raw/{year}/{year}-{month:02d}/md5sums.txt'
 
+
+BAD = [
+    'Special:',
+    'Main_Page',
+    'Talk:',
+    'User:',
+    'User_talk:',
+    'Wiktionary:',
+]
+
+# Have at least this number of hits to be considered
+LIMIT = 100
 
 def parsedate(date):
     '''Parse the date into something useful.  dateutil is doing 
@@ -68,6 +83,7 @@ def _update(i):
         sys.stdout.flush()
 
 def syncdb(filename, date, dbfile=DBFILE):
+    '''Sync the date file into the db'''
     print 'Working on {}'.format(filename)
     if DEBUG:
         db = dataset.connect('sqlite:///:memory:')
@@ -88,7 +104,9 @@ def syncdb(filename, date, dbfile=DBFILE):
             countrycode,title,requests,contentsize = line.strip().split()
             # remove percent encoded to utf-8
             requests = int(requests)
-            if DEBUG and (requests < 100): continue
+            if 'en' not in countrycode: continue
+            if any([b in title for b in BAD]): continue
+            if DEBUG and (requests < LIMIT): continue
             try:
                 # Try to use bytes -- otherwise use the string if failure
                 title = urllib.unquote(title).decode('utf-8')
@@ -121,14 +139,15 @@ def syncdb(filename, date, dbfile=DBFILE):
     return thisdate, titles
 
 def topdb(thisdate, titles, limit=10):
-    for row in thisdate.find(order_by=['-count'], _limit=limit):
+    '''Print out the top results for this day.  The rows should be 
+    sorted coming out of the find, but eh --- sort to be sure that things make
+    sense.  Things are not unique.'''
+    results = thisdate.find(order_by=['-count'], _limit=limit)
+    fmt = u"{r[count]: 10d} {t[code]:<10s} : {t[title]:}"
+    for row in sorted(results, key=lambda x: -x['count']):
         t = titles.find_one(id=row['title_id'])
-        print u'{: 10d} {:<10s} : {}'.format(row['count'], t['code'], t['title'])
+        print fmt.format(r=row, t=t)
     
-    # for row in results:
-    #     print row
-    #     # 
-    #     # 
 
 
 if __name__ == '__main__':
