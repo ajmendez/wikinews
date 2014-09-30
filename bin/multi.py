@@ -24,6 +24,10 @@ def multisync():
     from pysurvey import multi
     multi.multi(sync, gendates(), n=5)
 
+def singlesync():
+    for date in gendates():
+        sync(date)
 
 if __name__ == '__main__':
-    multisync()
+    # multisync()
+    singlesync()
