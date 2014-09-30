@@ -54,15 +54,18 @@ def parsedate(date):
     all of the heavy work here, but this function abstracts any extra logic.'''
     return parser.parse(date)
 
+def getloc(date, outdir):
+    url = URL.format(year=date.year, month=date.month, 
+                     day=date.day, hour=date.hour)
+    outfile = os.path.join(outdir, os.path.basename(url))
+    return url, outfile
 
 def getpage(date, outdir=TMPDIR):
     '''TODO: Check against hash: http://dumps.wikimedia.org/other/pagecounts-raw/2014/2014-09/md5sums.txt'''
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     
-    url = URL.format(year=date.year, month=date.month, 
-                     day=date.day, hour=date.hour)
-    outfile = os.path.join(outdir, os.path.basename(url))
+    url, outfile = getloc(date, outdir)
     if os.path.exists(outfile):
         print "Already retreved filed: {}".format(outfile)
         return outfile

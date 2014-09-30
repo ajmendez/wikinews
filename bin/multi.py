@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 '''Parse wikipedia to get the news'''
+import os
 from datetime import datetime, timedelta
-from news import getpage, syncdb
+from news import getpage, syncdb, getloc, TMPDIR
 
 START = datetime(2014,9,21)
 END   = datetime(2014,9,28)
@@ -16,8 +17,10 @@ def gendates():
         current += DELTA
 
 def sync(date):
-    outfile = getpage(date)
-    syncdb(outfile, date)
+    # outfile = getpage(date)
+    outfile = getloc(date, TMPDIR)[1]
+    if os.path.exists(outfile):
+        syncdb(outfile, date)
 
 
 def multisync():
