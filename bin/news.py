@@ -27,6 +27,9 @@ if __name__ == '__main__':
 # location where we store the intemediate bits.
 # keep it while we debug then use tempfile in the end
 TMPDIR = os.path.expanduser('~/tmp/wikinews')
+if not os.path.exists(TMPDIR):
+    TMPDIR = os.path.expanduser('~/raid/tmp/wikinews')
+
 
 DBFILE = os.path.expanduser('~/tmp/wikinews/wikinews.db')
 DBFILE = '/wikinews.db'
@@ -141,6 +144,65 @@ def syncdb(filename, date, dbfile=DBFILE):
         
     return thisdate, titles
 
+
+def syncdict(filename, date, dbfile=DBFILE):
+    '''Sync the date file into the db'''
+    print 'Working on {}'.format(filename)
+    k = 0
+    titles = {}
+    thisdate = {}
+    with gzip.open(filename) as gz:
+        for i,line in enumerate(gz):
+            countrycode,title,requests,contentsize = line.strip().split()
+            requests = int(requests)
+            if 'en' not in countrycode: continue
+            if any([b in title for b in BAD]): continue
+            # if DEBUG and (requests < LIMIT): continue
+            
+            try:
+                # Try to use bytes -- otherwise use the string if failure
+                title = urllib.unquote(title).decode('utf-8')
+            except:
+                # print '\nBad Title: {}'.format(title)
+                pass
+            
+            tmp = titles.get(title,{})
+            count = tmp.get('count', 0) + requests
+            titles[title] = dict(title=title, code=countrycode, count=count)
+            
+            tmp = thisdate.get(title,{})
+            count = tmp.get('count', 0) + requests
+            thisdate[title] = dict(title=title, count=count)
+            
+            k+=1
+            _update(k)
+            if DEBUG and (k > 10000):
+                break
+    print 'Done'
+    thisdate = thisdate.values()
+    titles = titles.values()
+    return thisdate, titles
+
+
+def updatedb(thisdate, titles):
+    print 'Saving to db'
+    db = dataset.connect('sqlite://{}'.format(DBFILE))
+    Titles = db.get_table('titles')
+    Thisdate = db.get_table(tablekey(date))
+    
+    
+    Thisdate.insert_many(thisdate)
+    # Titles.insert_many(titles)
+    for k,t in enumerate(titles):
+        tmp = Titles.find_one(title=t['title'], code=t['code'])
+        t['count'] += 0 if tmp is None else tmp['count']
+        Titles.upsert(t, ['title'])
+        _update(k)
+    print 'Done'
+    topdb(Thisdate, Titles)
+    
+
+
 def topdb(thisdate, titles, limit=10):
     '''Print out the top results for this day.  The rows should be 
     sorted coming out of the find, but eh --- sort to be sure that things make
@@ -156,7 +218,10 @@ def topdb(thisdate, titles, limit=10):
 if __name__ == '__main__':
     date = parsedate(DATE)
     outfile = getpage(date)
-    thisdate,titles = syncdb(outfile, date)
-    topdb(thisdate, titles)
+    # thisdate,titles = syncdb(outfile, date)
+    thisdate,titles = syncdict(outfile, date)
+    updatedb(thisdate, titles)
+    # print set([x['code'] for x in titles.values()])
+    # topdb(thisdate, titles)
 
 
